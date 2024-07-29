@@ -1,0 +1,283 @@
+definitions:
+  CategoryPurchase:
+    properties:
+      compras:
+        items:
+          $ref: '#/definitions/Purchase'
+        type: array
+      created_at:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: integer
+    type: object
+  Purchase:
+    description: Compra asdasd
+    properties:
+      articulos:
+        items:
+          $ref: '#/definitions/models.Article'
+        type: array
+      categoria_id:
+        description: Foreign key
+        type: integer
+      category:
+        $ref: '#/definitions/CategoryPurchase'
+      created_at:
+        type: integer
+      description:
+        description: '@Description Descripcion de la compra'
+        type: string
+      id:
+        type: integer
+      import:
+        description: '@Description'
+        type: number
+      title:
+        description: '@Description Titulo de la compra'
+        type: string
+      updated_at:
+        type: integer
+    type: object
+  ResponseError:
+    properties:
+      message:
+        type: string
+    type: object
+  ResponseOk:
+    properties:
+      message:
+        type: string
+    type: object
+  models.Article:
+    properties:
+      compra:
+        $ref: '#/definitions/Purchase'
+      compra_id:
+        type: integer
+      created_at:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      price:
+        type: number
+      updated_at:
+        type: integer
+    type: object
+info:
+  contact: {}
+paths:
+  /v1/category:
+    get:
+      consumes:
+      - application/json
+      description: Get all categories
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: "OK\"\t\t\t\t\texample:\"[{\\\"id\\\":1, \\\"name\\\":\\\"Electronics\\\",
+            \\\"created_at\\\":1627580400, \\\"updated_at\\\":1627580400}]"
+          schema:
+            items:
+              $ref: '#/definitions/CategoryPurchase'
+            type: array
+        "500":
+          description: "Internal server error\"\texample:\"{\\\"error\\\": \\\"Internal\tserver\terror\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Get all categories
+      tags:
+      - Categories
+    post:
+      consumes:
+      - application/json
+      description: Create a new category
+      parameters:
+      - description: Category to create
+        in: body
+        name: category
+        required: true
+        schema:
+          $ref: '#/definitions/CategoryPurchase'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: "Created category\"\t\texample:\"{\\\"id\\\":1, \\\"name\\\":\\\"Electronics\\\",
+            \\\"created_at\\\":1627580400, \\\"updated_at\\\":1627580400}"
+          schema:
+            $ref: '#/definitions/CategoryPurchase'
+        "400":
+          description: "Invalid input\"\t\t\texample:\"{\\\"error\\\": \\\"Invalid\tinput\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+        "500":
+          description: "Internal server error\"\texample:\"{\\\"error\\\": \\\"Internal\tserver\terror\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Create a new category
+      tags:
+      - Categories
+    put:
+      consumes:
+      - application/json
+      description: Update an existing category
+      parameters:
+      - description: Category to update
+        in: body
+        name: category
+        required: true
+        schema:
+          $ref: '#/definitions/CategoryPurchase'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: "Updated category\"\t\texample:\"{\\\"id\\\":1, \\\"name\\\":\\\"Electronics\\\",
+            \\\"created_at\\\":1627580400, \\\"updated_at\\\":1627580400}"
+          schema:
+            $ref: '#/definitions/CategoryPurchase'
+        "400":
+          description: "Invalid input\"\t\t\texample:\"{\\\"error\\\": \\\"Invalid\tinput\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+        "500":
+          description: "Internal server error\"\texample:\"{\\\"error\\\": \\\"Internal\tserver\terror\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Update an existing category
+      tags:
+      - Categories
+  /v1/category/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a category by its ID
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: "Category deleted message\"\texample:\"{\\\"message\\\": \\\"Categoría\teliminada\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseOk'
+        "400":
+          description: "Invalid ID\"\t\t\t\texample:\"{\\\"error\\\": \\\"ID\t\t\tinválido\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+        "500":
+          description: "Internal server error\"\t\texample:\"{\\\"error\\\": \\\"Internal\t\tserver\terror\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Delete a category by ID
+      tags:
+      - Categories
+    get:
+      consumes:
+      - application/json
+      description: Get a category by its ID
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: "OK\"\t\t\t\t\texample:\"{\\\"id\\\":1, \\\"name\\\":\\\"Electronics\\\",
+            \\\"created_at\\\":1627580400, \\\"updated_at\\\":1627580400}"
+          schema:
+            $ref: '#/definitions/CategoryPurchase'
+        "400":
+          description: "Invalid ID\"\t\t\texample:\"{\\\"error\\\": \\\"ID\t\tinválido\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+        "404":
+          description: "Category not found\"\texample:\"{\\\"error\\\": \\\"Category\tnot\t\tfound\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+        "500":
+          description: "Internal server error\"\texample:\"{\\\"error\\\": \\\"Internal\tserver\terror\\\"}"
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Get category by ID
+      tags:
+      - Categories
+  /v1/compra:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Purchase'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Get version of app application
+      tags:
+      - Compras
+  /v1/liveness:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Liveness endpoint
+      tags:
+      - Misc
+  /v1/readiness:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Readiness endpoint
+      tags:
+      - Misc
+  /v1/version:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ResponseOk'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ResponseError'
+      summary: Get version of app application
+      tags:
+      - Misc
+swagger: "2.0"
