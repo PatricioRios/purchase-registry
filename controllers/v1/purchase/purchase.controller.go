@@ -12,85 +12,132 @@ import (
 
 type PurchaseController struct {
 	logger  utils.Logger
-	service *compra.CompraService
+	service compra.Service
 }
 
-func NewPurchaseController(logger utils.Logger, service *compra.CompraService) PurchaseController {
+func NewPurchaseController(logger utils.Logger, service compra.Service) PurchaseController {
 	return PurchaseController{
 		logger:  logger,
 		service: service,
 	}
 }
 
-// GetVersion
-//
-//	@Summary	Get version of app application
-//	@Tags		Compras
-//	@Accept		json
-//	@Produce	json
-//	@Success	200	{object}	models.Purchase
-//	@Failure	500	{object}	utils.ResponseError
-//	@Router		/v1/compra [get]
-func (ctrl *PurchaseController) GetAllPurchases(c *gin.Context) {
+// mapErrorToHTTPStatus maps service errors to HTTP status codes.
+func mapErrorToHTTPStatus(err error) int {
+	switch err {
+	case compra.ErrPurchaseBadTitle, compra.ErrPurchaseBadDescription, compra.ErrPurchaseNegativeImport, compra.ErrCategoryInvalid, compra.ErrCategoryInvalidId:
+		return http.StatusBadRequest
+	case compra.ErrCategoryNotFound:
+		return http.StatusNotFound
+	case compra.ErrInternalError:
+		return http.StatusInternalServerError
+	default:
+		return http.StatusInternalServerError
+	}
+}
 
-	compras, err := ctrl.service.GetAllPurchases()
+// GetAllPurchases handles the retrieval of all purchases for a user.
+func (ctrl *PurchaseController) GetAllPurchases(c *gin.Context) {
+	userId, exist := c.Get("user_id")
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+	compras, err := ctrl.service.GetAllPurchases(userId.(int))
 	if err != nil {
-		c.JSON(err.Code(), gin.H{"error": err.Error()})
+		c.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, compras)
 }
 
-func (crl *PurchaseController) GetPurchaseById(c *gin.Context) {
+// GetPurchaseById handles the retrieval of a single purchase by ID.
+func (ctrl *PurchaseController) GetPurchaseById(c *gin.Context) {
 	param := c.Param("id")
-	id, _ := strconv.Atoi(param)
-	compra, err := crl.service.GetPurchaseById(id)
+	id, err := strconv.Atoi(param)
+	if err != nil || id < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	userId, exist := c.Get("user_id")
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+	compra, err := ctrl.service.GetPurchaseById(id, userId.(int))
 	if err != nil {
-		c.JSON(err.Code(), gin.H{"error": err.Error()})
+		c.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, compra)
 }
 
-func (crl *PurchaseController) UpdatePurchase(c *gin.Context) {
-
+// UpdatePurchase handles updating an existing purchase.
+func (ctrl *PurchaseController) UpdatePurchase(c *gin.Context) {
 	var compraUpdater models.CompraUpdate
 	if err := c.BindJSON(&compraUpdater); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON input"})
 		return
 	}
-	compra, err := crl.service.UpdateCompra(compraUpdater)
+
+	userId, exist := c.Get("user_id")
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+	compraUpdater.UserID = userId.(int)
+
+	compra, err := ctrl.service.UpdateCompra(compraUpdater)
 	if err != nil {
-		c.JSON(err.Code(), gin.H{"error": err.Error()})
+		c.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, compra)
 }
 
-func (crl *PurchaseController) CreatePurchase(c *gin.Context) {
+// CreatePurchase handles creating a new purchase.
+func (ctrl *PurchaseController) CreatePurchase(c *gin.Context) {
 	var compra models.Purchase
 	if err := c.BindJSON(&compra); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON input"})
 		return
 	}
-	compra, err := crl.service.CreatePurchase(compra)
+
+	userId, exist := c.Get("user_id")
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+	compra.UserID = userId.(int)
+
+	compra, err := ctrl.service.CreatePurchase(compra)
 	if err != nil {
-		c.JSON(err.Code(), gin.H{"error": err.Error()})
+		c.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, compra)
+	c.JSON(http.StatusCreated, compra)
 }
 
-func (crl *PurchaseController) DeletePurchase(c *gin.Context) {
+// DeletePurchase handles deleting a purchase by ID.
+func (ctrl *PurchaseController) DeletePurchase(c *gin.Context) {
 	id := c.Param("id")
 	compraId, err := strconv.Atoi(id)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err != nil || compraId < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
 
+	userId, exist := c.Get("user_id")
+	if !exist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
 	}
-	errSrvc := crl.service.DeletePurchase(compraId)
-	if errSrvc != nil {
-		c.JSON(errSrvc.Code(), gin.H{"error": errSrvc.Error()})
+
+	err = ctrl.service.DeletePurchase(compraId, userId.(int))
+	if err != nil {
+		c.JSON(mapErrorToHTTPStatus(err), gin.H{"error": err.Error()})
+		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Compra deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "Purchase deleted successfully"})
 }

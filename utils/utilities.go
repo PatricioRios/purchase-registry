@@ -4,6 +4,7 @@ import (
 	"reflect"
 )
 
+// El primer valor es el valor que queremos setear, el segundo es el valor desde donde queremos setear
 func SetIfNotNil(target interface{}, value interface{}) {
 	val := reflect.ValueOf(value)
 	if val.Kind() == reflect.Ptr && !val.IsNil() {

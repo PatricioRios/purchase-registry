@@ -8,3 +8,7 @@ import (
 var Module = fx.Options(
 	fx.Provide(mysqlgorm.NewMySQLORM),
 )
+
+var TestModule = fx.Options(
+	fx.Provide(mysqlgorm.NewMySQLORMTest),
+)

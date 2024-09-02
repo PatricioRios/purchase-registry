@@ -21,6 +21,7 @@ type Purchase struct {
 
 type CompraUpdate struct {
 	Id          *int              `json:"id"`
+	UserID      int               `json:"user_id"`
 	Title       *string           `json:"title"`
 	Description *string           `json:"description"`
 	Import      *float32          `json:"import"`

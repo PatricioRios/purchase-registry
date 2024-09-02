@@ -16,27 +16,34 @@ func NewRepositoryCategoryImpl(db *gorm.DB) RepositoryCategory {
 }
 
 // GetAllCategories obtiene todas las categorías desde la base de datos.
-func (repo *RepositoryCategoryImpl) GetAllCategories() ([]models.CategoryPurchase, error) {
+func (repo *RepositoryCategoryImpl) GetAllCategories(userId int) ([]models.CategoryPurchase, error) {
 	var categorias []models.CategoryPurchase
-	tx := repo.MySQLDB.Find(&categorias)
-	if tx.Error != nil {
-		return nil, tx.Error
+	if err := repo.MySQLDB.Where("user_id = ?", userId).Find(&categorias).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
 	}
 	return categorias, nil
 }
 
-// GetCategoryById obtiene una categoría por su ID desde la base de datos.
-func (repo *RepositoryCategoryImpl) GetCategoryById(id int) (models.CategoryPurchase, error) {
+// GetCategoryById obtiene una categoría por su ID desde la base de datos y verifica que pertenece al userId.
+func (repo *RepositoryCategoryImpl) GetCategoryById(id int, userId int) (models.CategoryPurchase, error) {
 	var categoria models.CategoryPurchase
-	tx := repo.MySQLDB.Preload("Compras").First(&categoria, id)
-	if tx.Error != nil {
-		return categoria, tx.Error
+	tx := repo.MySQLDB.Preload("Compras").Where("id = ? AND user_id = ?", id, userId).First(&categoria)
+	err := tx.Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return categoria, err
+		}
+		return categoria, err
 	}
 	return categoria, nil
 }
 
 // CreateCategory crea una nueva categoría en la base de datos.
 func (repo *RepositoryCategoryImpl) CreateCategory(category models.CategoryPurchase) (models.CategoryPurchase, error) {
+	category.Id = 0
 	tx := repo.MySQLDB.Create(&category)
 	if tx.Error != nil {
 		return category, tx.Error
@@ -53,20 +60,25 @@ func (repo *RepositoryCategoryImpl) UpdateCategory(category models.CategoryPurch
 	return category, nil
 }
 
-// DeleteCategory elimina una categoría de la base de datos por su ID.
-func (repo *RepositoryCategoryImpl) DeleteCategory(id int) error {
-	tx := repo.MySQLDB.Delete(&models.CategoryPurchase{}, id)
+// DeleteCategory elimina una categoría de la base de datos por su ID y el ID del usuario.
+func (repo *RepositoryCategoryImpl) DeleteCategory(id int, userId int) error {
+	tx := repo.MySQLDB.Where("id = ? AND user_id = ?", id, userId).Delete(&models.CategoryPurchase{})
 	if tx.Error != nil {
 		return tx.Error
 	}
 	return nil
 }
 
-func (repo *RepositoryCategoryImpl) GetCategoryByName(name string) (models.CategoryPurchase, error) {
-	var article models.CategoryPurchase
-	tx := repo.MySQLDB.Where("name = ?", name).First(&article)
-	if tx.Error != nil {
-		return article, tx.Error
+func (repo *RepositoryCategoryImpl) GetCategoryByName(name string, userId int) (models.CategoryPurchase, error) {
+	var category models.CategoryPurchase
+	tx := repo.MySQLDB.Where("name = ? AND user_id = ?", name, userId).First(&category)
+	err := tx.Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return category, ErrRecordNotFound
+		}
+		return category, tx.Error
+
 	}
-	return article, nil
+	return category, nil
 }

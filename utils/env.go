@@ -6,16 +6,19 @@ import (
 
 // DBConfig holds database configuration values
 type DBConfig struct {
-	Host string `mapstructure:"DB_HOST"`
-	Port string `mapstructure:"DB_PORT"`
-	User string `mapstructure:"DB_USER"`
-	Pass string `mapstructure:"DB_PASSWORD"`
-	Name string `mapstructure:"DB_NAME"`
+	Host     string `mapstructure:"DB_HOST"`
+	Port     string `mapstructure:"DB_PORT"`
+	User     string `mapstructure:"DB_USER"`
+	Pass     string `mapstructure:"DB_PASSWORD"`
+	Name     string `mapstructure:"DB_NAME"`
+	NameTest string `mapstructure:"DB_NAME_TEST"`
 }
 
 type JWTConfig struct {
-	Secret        string `mapstructure:"JWT_SECRET"`
-	SecretRefresh string `mapstructure:"JWT_SECRET_REFRESH"`
+	Secret          string `mapstructure:"JWT_SECRET"`
+	SecretRefresh   string `mapstructure:"JWT_SECRET_REFRESH"`
+	Duration        int    `mapstructure:"JWT_DURATION"`
+	RefreshDuration int    `mapstructure:"JWT_REFRESH_DURATION"`
 }
 
 // Env has environment stored

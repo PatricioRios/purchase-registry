@@ -1,170 +1,179 @@
 package purchase
 
 import (
-	"fmt"
-	"net/http"
-
 	"github.com/PatricioRios/Compras/models"
-	"github.com/PatricioRios/Compras/repository/v1/category"
+	categoryRepoPgk "github.com/PatricioRios/Compras/repository/v1/category"
 	"github.com/PatricioRios/Compras/repository/v1/purchase"
 	"github.com/PatricioRios/Compras/utils"
-	"gorm.io/gorm"
 )
 
+// CompraService implementa la interfaz Service y maneja la lógica de negocio.
 type CompraService struct {
 	purchaseRepository purchase.RepositoryCompra
-	categoryRepository category.RepositoryCategory
+	categoryRepository categoryRepoPgk.RepositoryCategory
 }
 
-func NewCompraService(repository purchase.RepositoryCompra, categoryRepository category.RepositoryCategory) *CompraService {
+// NewCompraService crea una nueva instancia de CompraService.
+func NewCompraService(repository purchase.RepositoryCompra, categoryRepository categoryRepoPgk.RepositoryCategory) Service {
 	return &CompraService{
 		purchaseRepository: repository,
 		categoryRepository: categoryRepository,
 	}
 }
 
-func (s *CompraService) GetAllPurchases() (*[]models.Purchase, utils.SrvcError) {
-	compras, err := s.purchaseRepository.GetAllPurchases()
+// GetAllPurchases obtiene todas las compras de un usuario.
+func (s *CompraService) GetAllPurchases(userId int) (*[]models.Purchase, error) {
+	compras, err := s.purchaseRepository.GetAllPurchases(userId)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, utils.NewError(http.StatusNoContent, "Compras no encontradas")
+		if err == categoryRepoPgk.ErrRecordNotFound {
+			return nil, ErrPurchaseNotFound
 		}
-		return nil, utils.NewError(http.StatusInternalServerError, err.Error())
+		return nil, ErrInternalError
 	}
 	return &compras, nil
 }
 
-func (s *CompraService) GetPurchaseById(id int) (models.Purchase, utils.SrvcError) {
+// GetPurchaseById obtiene una compra por su ID.
+func (s *CompraService) GetPurchaseById(id int, userId int) (models.Purchase, error) {
 	if id < 1 {
-		return models.Purchase{}, utils.NewError(http.StatusBadRequest, "La id no puede ser menor a 1")
+		return models.Purchase{}, ErrPurchaseInvalidId
 	}
-	compra, err := s.purchaseRepository.GetPurchaseById(id)
+	compra, err := s.purchaseRepository.GetPurchaseById(id, userId)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return models.Purchase{}, utils.NewError(http.StatusNotFound, "Compra no encontrada")
+		if err == purchase.ErrPurchaseNotFound {
+			return models.Purchase{}, ErrPurchaseNotFound
 		}
-		return compra, utils.NewError(http.StatusInternalServerError, err.Error())
+		return compra, ErrInternalError
 	}
 	return compra, nil
 }
 
-func (s *CompraService) UpdateCompra(compra models.CompraUpdate) (models.Purchase, utils.SrvcError) {
-	var compraFinded models.Purchase
-
+// UpdateCompra actualiza una compra existente.
+func (s *CompraService) UpdateCompra(compra models.CompraUpdate) (models.Purchase, error) {
 	if compra.Id == nil || *compra.Id < 1 {
-		return models.Purchase{}, utils.NewError(http.StatusBadRequest, "Id Invalida")
+		return models.Purchase{}, ErrPurchaseInvalidId
 	}
 
-	if compra.Import != nil && *compra.Import < 0 {
-		return compraFinded, utils.NewError(http.StatusBadRequest, "El importe no puede ser negativo")
-	}
-
-	compraFinded, err := s.purchaseRepository.GetPurchaseById(*compra.Id)
+	compraFinded, err := s.purchaseRepository.GetPurchaseById(*compra.Id, compra.UserID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return compraFinded, utils.NewError(http.StatusNoContent, "Compra no encontrada")
+		if err == purchase.ErrPurchaseNotFound {
+			return models.Purchase{}, ErrPurchaseNotFound
 		}
-		return compraFinded, utils.NewError(http.StatusInternalServerError, err.Error())
+		return models.Purchase{}, ErrInternalError
 	}
 
-	//The first paramether for actualize is CategoriaId
+	// Update category if needed
 	if compra.Category != nil || compra.CategoriaID != nil {
-		fmt.Println("ENTRO")
-		if compra.CategoriaID != nil {
-			fmt.Println("hay una id")
-
-			newCatgory, err := s.categoryRepository.GetCategoryById(*compra.CategoriaID)
+		if compra.CategoriaID != nil || compra.Category.Name == "" {
+			newCategory, err := s.categoryRepository.GetCategoryById(*compra.CategoriaID, compra.UserID)
 			if err != nil {
-				if err == gorm.ErrRecordNotFound {
-					return compraFinded, utils.NewError(http.StatusNotFound, "Categoría no encontrada")
-				} else {
-					return compraFinded, utils.NewError(http.StatusInternalServerError, err.Error())
+				if err == categoryRepoPgk.ErrRecordNotFound {
+					return compraFinded, ErrCategoryNotExist
 				}
+				return compraFinded, ErrInternalError
 			}
-			compraFinded.CategoriaID = newCatgory.Id
-			compraFinded.Category = newCatgory
-		} else {
-			fmt.Println("hay un nombre")
-
-			newCategory, err := s.categoryRepository.GetCategoryByName(compra.Category.Name)
-			if err != nil {
-				if err == gorm.ErrRecordNotFound {
-					var category models.CategoryPurchase
-					category.Name = compra.Category.Name
-					newCategory, err = s.categoryRepository.CreateCategory(category)
-					if err != nil {
-						return compraFinded, utils.NewError(http.StatusInternalServerError, err.Error())
-					}
-				} else {
-					return compraFinded, utils.NewError(http.StatusInternalServerError, err.Error())
-				}
-			}
-			if newCategory.Name != "" {
-				fmt.Println(newCategory.Name)
-				compraFinded.CategoriaID = newCategory.Id
-			}
+			compraFinded.CategoriaID = newCategory.Id
 			compraFinded.Category = newCategory
+		} else if compra.Category != nil && compra.Category.Name != "" {
+			compraFinded.Category, err = s.categoryRepository.GetCategoryByName(compra.Category.Name, compra.UserID)
+			if err != nil {
+				if err == categoryRepoPgk.ErrRecordNotFound {
+					compra.Category.UserID = compra.UserID
+					compraFinded.Category, err = s.categoryRepository.CreateCategory(*compra.Category)
+					if err != nil {
+						return compraFinded, ErrInternalError
+					}
+					compraFinded.CategoriaID = compraFinded.Category.Id
+				} else {
+					return compraFinded, ErrInternalError
+				}
+			} else {
+				compraFinded.CategoriaID = compraFinded.Category.Id
+			}
+		} else {
+			return compraFinded, ErrCategoryBadRequest
 		}
 	}
+
 	utils.SetIfNotNil(&compraFinded.Title, compra.Title)
 	utils.SetIfNotNil(&compraFinded.Description, compra.Description)
 	utils.SetIfNotNil(&compraFinded.Import, compra.Import)
 
 	compraFinded, err = s.purchaseRepository.UpdatePurchase(compraFinded)
 	if err != nil {
-		return compraFinded, utils.SrvcErrorImpl{
-			CodeError: http.StatusInternalServerError,
-			Message:   err.Error(),
-		}
+		return compraFinded, ErrInternalError
 	}
 	return compraFinded, nil
 }
 
-func (s *CompraService) CreatePurchase(compra models.Purchase) (models.Purchase, utils.SrvcError) {
+// CreatePurchase crea una nueva compra.
+func (s *CompraService) CreatePurchase(compra models.Purchase) (models.Purchase, error) {
 	if compra.Title == "" {
-		return compra, utils.NewBadRequest("El título es obligatorio")
+		return compra, ErrPurchaseBadTitle
 	}
 	if compra.Description == "" {
-
-		return compra, utils.NewBadRequest("La descripción es obligatoria")
+		return compra, ErrPurchaseBadDescription
 	}
 	if compra.Import < 0 {
-		return compra, utils.NewBadRequest("El importe no puede ser negativo")
+		return compra, ErrPurchaseNegativeImport
 	}
 	if compra.CategoriaID < 1 {
-		return compra, utils.NewBadRequest("La categoría es obligatoria")
+		if compra.Category.Name != "" {
+			category, err := s.categoryRepository.GetCategoryByName(compra.Category.Name, compra.UserID)
+			if err != nil {
+				if err == categoryRepoPgk.ErrRecordNotFound {
+					compra.Category.UserID = compra.UserID
+					category, err = s.categoryRepository.CreateCategory(compra.Category)
+					if err != nil {
+						return models.Purchase{}, ErrInternalError
+					}
+					compra.Category = category
+					compra.CategoriaID = category.Id
+				} else {
+					return models.Purchase{}, ErrInternalError
+				}
+			} else {
+				compra.Category = category
+				compra.CategoriaID = category.Id
+			}
+		} else {
+			return compra, ErrCategoryInvalid
+		}
 	}
-	importe := 0.0
-	for i, artículo := range compra.Articulos {
-		if artículo.Name == "" {
-			return compra, utils.NewBadRequest("El nombre del artículo es obligatorio")
+	if len(compra.Articulos) > 0 {
+		importe := 0.0
+		for i, articulo := range compra.Articulos {
+			if articulo.Name == "" {
+				return compra, ErrArticleNameEmpty
+			}
+			if articulo.Price < 0 {
+				return compra, ErrArticlePriceNegative
+			}
+			importe += articulo.Price
+			compra.Articulos[i].Id = 0
+			compra.Articulos[i].CompraID = 0
 		}
-		if artículo.Price < 0 {
-			return compra, utils.NewBadRequest("El precio del artículo" + artículo.Name + " no puede ser negativo")
-		}
-		importe += artículo.Price
-		compra.Articulos[i].Id = 0
-		compra.Articulos[i].CompraID = 0
+		compra.Import = importe
 	}
 	compra.Id = 0
-	compra.Import = importe
 	compra, err := s.purchaseRepository.CreatePurchase(compra)
 	if err != nil {
-		return compra, utils.NewError(http.StatusInternalServerError, err.Error())
+		return compra, ErrInternalError
 	}
 	return compra, nil
 }
 
-func (s *CompraService) DeletePurchase(id int) utils.SrvcError {
+// DeletePurchase elimina una compra por ID.
+func (s *CompraService) DeletePurchase(id int, userId int) error {
 	if id < 1 {
-		return utils.NewError(http.StatusBadRequest, "La id no puede ser menor a 1")
+		return ErrPurchaseInvalidId
 	}
-	err := s.purchaseRepository.DeletePurchase(id)
+	err := s.purchaseRepository.DeletePurchase(id, userId)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return utils.NewError(http.StatusNotFound, "Compra no encontrada")
+		if err == purchase.ErrPurchaseNotFound {
+			return ErrCategoryNotFound
 		}
-		return utils.NewError(http.StatusInternalServerError, err.Error())
+		return ErrInternalError
 	}
 	return nil
 }

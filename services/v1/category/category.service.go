@@ -1,102 +1,95 @@
 package category
 
+//capa de logica de negocio
 import (
-	"net/http"
-
 	"github.com/PatricioRios/Compras/models"
-	"github.com/PatricioRios/Compras/repository/v1/category"
-	"github.com/PatricioRios/Compras/utils"
-	"gorm.io/gorm"
+	categoryPkg "github.com/PatricioRios/Compras/repository/v1/category"
 )
 
 // CategoryService maneja operaciones de categorías usando el repositorio de categorías.
+func mapRepositoryError(err error) error {
+	switch err {
+	case categoryPkg.ErrRecordNotFound:
+		return ErrNotFound
+	default:
+		return ErrInternalError
+	}
+}
+
+// CategoryService maneja operaciones de categorías usando el repositorio de categorías.
 type CategoryService struct {
-	categoryRepository category.RepositoryCategory
+	categoryRepository categoryPkg.RepositoryCategory
 }
 
 // NewCategoryService crea una nueva instancia de CategoryService.
-func NewCategoryService(categoryRepository category.RepositoryCategory) *CategoryService {
+func NewCategoryService(categoryRepository categoryPkg.RepositoryCategory) Service {
 	return &CategoryService{
 		categoryRepository: categoryRepository,
 	}
 }
 
 // GetAllCategories obtiene todas las categorías.
-func (s *CategoryService) GetAllCategories() (*[]models.CategoryPurchase, utils.SrvcError) {
-	categorias, err := s.categoryRepository.GetAllCategories()
+func (s *CategoryService) GetAllCategories(userId int) (*[]models.CategoryPurchase, error) {
+	categorias, err := s.categoryRepository.GetAllCategories(userId)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, utils.NewError(http.StatusNotFound, "Categorías no encontradas")
-		}
-		return nil, utils.NewError(http.StatusInternalServerError, err.Error())
+		return nil, mapRepositoryError(err)
 	}
 	return &categorias, nil
 }
 
 // GetCategoryById obtiene una categoría por su ID.
-func (s *CategoryService) GetCategoryById(id int) (models.CategoryPurchase, utils.SrvcError) {
+func (s *CategoryService) GetCategoryById(id int, userId int) (models.CategoryPurchase, error) {
 	if id < 1 {
-		return models.CategoryPurchase{}, utils.NewError(http.StatusBadRequest, "El ID no puede ser menor a 1")
+		return models.CategoryPurchase{}, ErrInvalidId
 	}
-	categoria, err := s.categoryRepository.GetCategoryById(id)
+	categoria, err := s.categoryRepository.GetCategoryById(id, userId)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return models.CategoryPurchase{}, utils.NewError(http.StatusNotFound, "Categoría no encontrada")
-		}
-		return categoria, utils.NewError(http.StatusInternalServerError, err.Error())
+		return models.CategoryPurchase{}, mapRepositoryError(err)
 	}
 	return categoria, nil
 }
 
 // CreateCategory crea una nueva categoría.
-func (s *CategoryService) CreateCategory(category models.CategoryPurchase) (models.CategoryPurchase, utils.SrvcError) {
+func (s *CategoryService) CreateCategory(category models.CategoryPurchase) (models.CategoryPurchase, error) {
 	if category.Name == "" {
-		return category, utils.NewBadRequest("El nombre de la categoría es obligatorio")
+		return category, ErrInvalidName
 	}
 
 	category, err := s.categoryRepository.CreateCategory(category)
 	if err != nil {
-		return category, utils.NewError(http.StatusInternalServerError, err.Error())
+		return category, mapRepositoryError(err)
 	}
 	return category, nil
 }
 
 // UpdateCategory actualiza una categoría existente.
-func (s *CategoryService) UpdateCategory(category models.CategoryPurchase) (models.CategoryPurchase, utils.SrvcError) {
+func (s *CategoryService) UpdateCategory(category models.CategoryPurchase) (models.CategoryPurchase, error) {
 	if category.Id < 1 {
-		return models.CategoryPurchase{}, utils.NewError(http.StatusBadRequest, "ID inválido")
+		return models.CategoryPurchase{}, ErrInvalidId
 	}
 
-	// Obtener la categoría existente para verificar su existencia antes de actualizar
-	categoriaExistente, err := s.categoryRepository.GetCategoryById(category.Id)
+	categoriaExistente, err := s.categoryRepository.GetCategoryById(category.Id, category.UserID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return categoriaExistente, utils.NewError(http.StatusNotFound, "Categoría no encontrada")
-		}
-		return categoriaExistente, utils.NewError(http.StatusInternalServerError, err.Error())
+		return categoriaExistente, mapRepositoryError(err)
 	}
 
-	// Actualizar los campos de la categoría
 	categoriaExistente.Name = category.Name
 
 	categoriaActualizada, err := s.categoryRepository.UpdateCategory(categoriaExistente)
 	if err != nil {
-		return categoriaActualizada, utils.NewError(http.StatusInternalServerError, err.Error())
+		return categoriaActualizada, mapRepositoryError(err)
 	}
 	return categoriaActualizada, nil
 }
 
 // DeleteCategory elimina una categoría por su ID.
-func (s *CategoryService) DeleteCategory(id int) utils.SrvcError {
+func (s *CategoryService) DeleteCategory(id int, userId int) error {
 	if id < 1 {
-		return utils.NewError(http.StatusBadRequest, "El ID no puede ser menor a 1")
+		return ErrInvalidId
 	}
-	err := s.categoryRepository.DeleteCategory(id)
+	err := s.categoryRepository.DeleteCategory(id, userId)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return utils.NewError(http.StatusNotFound, "Categoría no encontrada")
-		}
-		return utils.NewError(http.StatusInternalServerError, err.Error())
+		return mapRepositoryError(err)
 	}
 	return nil
 }

@@ -17,8 +17,9 @@ type UserRepositoryImpl struct {
 	MySQLDB *gorm.DB
 }
 
-func NewUserRepositoryImpl(db *gorm.DB) UserRepository {
-	return &UserRepositoryImpl{MySQLDB: db}
+func New(db *gorm.DB) (UserRepository, UserAuthRepo) {
+	repo := UserRepositoryImpl{MySQLDB: db}
+	return &repo, &repo
 }
 
 func (r *UserRepositoryImpl) GetAllUsers() ([]models.User, error) {

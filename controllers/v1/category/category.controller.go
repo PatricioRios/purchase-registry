@@ -13,10 +13,10 @@ import (
 // CategoryController maneja las solicitudes HTTP relacionadas con las categorías.
 type CategoryController struct {
 	logger  utils.Logger
-	service *category.CategoryService
+	service category.Service
 }
 
-func NewCategoryController(logger utils.Logger, service *category.CategoryService) CategoryController {
+func NewCategoryController(logger utils.Logger, service category.Service) CategoryController {
 	return CategoryController{
 		logger:  logger,
 		service: service,
@@ -32,9 +32,20 @@ func NewCategoryController(logger utils.Logger, service *category.CategoryServic
 // @Failure 500 {object} utils.ResponseError
 // @Router /v1/category [get]
 func (ctrl *CategoryController) GetAllCategories(c *gin.Context) {
-	categorias, err := ctrl.service.GetAllCategories()
+
+	userId, exist := c.Get("user_id")
+
+	if !exist {
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: "ID inválido"})
+		return
+	}
+	categorias, err := ctrl.service.GetAllCategories(userId.(int))
 	if err != nil {
-		c.JSON(err.Code(), utils.ResponseError{Message: err.Error()})
+		if err == category.ErrInternalError {
+			c.JSON(http.StatusInternalServerError, utils.ResponseError{Message: err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, categorias)
@@ -58,10 +69,15 @@ func (ctrl *CategoryController) GetCategoryById(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: "ID inválido"})
 		return
 	}
+	userID, _ := c.Get("user_id")
 
-	categoria, srvcError := ctrl.service.GetCategoryById(id)
-	if srvcError != nil {
-		c.JSON(srvcError.Code(), utils.ResponseError{Message: srvcError.Error()})
+	categoria, err := ctrl.service.GetCategoryById(id, userID.(int))
+	if err != nil {
+		if err == category.ErrInternalError {
+			c.JSON(http.StatusInternalServerError, utils.ResponseError{Message: err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, categoria)
@@ -84,9 +100,21 @@ func (ctrl *CategoryController) CreateCategory(c *gin.Context) {
 		return
 	}
 
+	id, exist := c.Get("user_id")
+
+	if !exist {
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: "user id no encontrado"})
+		return
+	}
+	categoria.UserID = id.(int)
+
 	categoria, err := ctrl.service.CreateCategory(categoria)
 	if err != nil {
-		c.JSON(err.Code(), utils.ResponseError{Message: err.Error()})
+		if err == category.ErrInternalError {
+			c.JSON(http.StatusInternalServerError, utils.ResponseError{Message: err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, categoria)
@@ -108,10 +136,21 @@ func (ctrl *CategoryController) UpdateCategory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: err.Error()})
 		return
 	}
+	userID, exist := c.Get("user_id")
+	if !exist {
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: "user id no encontrado"})
+		return
+	}
+
+	categoria.UserID = userID.(int)
 
 	categoriaActualizada, err := ctrl.service.UpdateCategory(categoria)
 	if err != nil {
-		c.JSON(err.Code(), utils.ResponseError{Message: err.Error()})
+		if err == category.ErrInternalError {
+			c.JSON(http.StatusInternalServerError, utils.ResponseError{Message: err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, categoriaActualizada)
@@ -134,10 +173,14 @@ func (ctrl *CategoryController) DeleteCategory(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: "ID inválido"})
 		return
 	}
-
-	errSrvc := ctrl.service.DeleteCategory(categoriaId)
-	if errSrvc != nil {
-		c.JSON(errSrvc.Code(), utils.ResponseError{Message: errSrvc.Error()})
+	userID, _ := c.Get("user_id")
+	err = ctrl.service.DeleteCategory(categoriaId, userID.(int))
+	if err != nil {
+		if err == category.ErrInternalError {
+			c.JSON(http.StatusInternalServerError, utils.ResponseError{Message: err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, utils.ResponseError{Message: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Categoría eliminada"})

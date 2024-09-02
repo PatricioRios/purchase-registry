@@ -11,3 +11,8 @@ type UserRepository interface {
 	GetUserByEmail(email string) (models.User, error)
 	GetUserByUserName(userName string) (models.User, error)
 }
+
+type UserAuthRepo interface {
+	GetUserByEmail(email string) (models.User, error)
+	GetUserByUserName(userName string) (models.User, error)
+}

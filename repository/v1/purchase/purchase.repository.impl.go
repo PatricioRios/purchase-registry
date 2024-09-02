@@ -1,6 +1,8 @@
 package purchase
 
 import (
+	"errors"
+
 	"github.com/PatricioRios/Compras/models"
 	"gorm.io/gorm"
 )
@@ -15,35 +17,53 @@ func NewRepositoryCompraImpl(db *gorm.DB) RepositoryCompra {
 	return &RepositoryCompraImpl{MySQLDB: db}
 }
 
-// DeletePurchase deletes a compra by ID
-func (repository *RepositoryCompraImpl) DeletePurchase(id int) error {
-	var compra models.Purchase
-	tx := repository.MySQLDB.Delete(&compra, id)
-	if tx.Error != nil {
-		return tx.Error
+// DeletePurchase elimina una compra por su ID y userId, y elimina los artículos relacionados
+func (repository *RepositoryCompraImpl) DeletePurchase(id int, userId int) error {
+	// Primero elimina los artículos relacionados
+	if err := repository.MySQLDB.Where("compra_id = ?", id).Delete(&models.Article{}).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArticleNotFound
+		}
+		return ErrPurchaseDeleteFail
+	}
+
+	// Luego elimina la compra
+	if err := repository.MySQLDB.Where("id = ? AND user_id = ?", id, userId).Delete(&models.Purchase{}).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrPurchaseNotFound
+		}
+		return ErrPurchaseDeleteFail
 	}
 	return nil
 }
 
 // GetAllPurchases retrieves all compras from the database
-func (repository *RepositoryCompraImpl) GetAllPurchases() ([]models.Purchase, error) {
+func (repository *RepositoryCompraImpl) GetAllPurchases(userId int) ([]models.Purchase, error) {
 	var compras []models.Purchase
-	tx := repository.MySQLDB.
-		//Preload("Articulos").
-		//Select("id", "title", "description", "import", "categoria_id", "created_at", "updated_at"). // Selecciona solo los campos necesarios
-		Find(&compras)
-	if tx.Error != nil {
-		return nil, tx.Error
+	err := repository.MySQLDB.Where("user_id = ?", userId).Preload("Category").Find(&compras).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPurchaseNotFound
+		}
+		return nil, err
 	}
 	return compras, nil
 }
 
 // GetPurchaseById retrieves a compra by ID from the database
-func (repository *RepositoryCompraImpl) GetPurchaseById(id int) (models.Purchase, error) {
+func (repository *RepositoryCompraImpl) GetPurchaseById(id int, userId int) (models.Purchase, error) {
 	var compra models.Purchase
-	tx := repository.MySQLDB.Preload("Category").Preload("Articulos").First(&compra, id)
-	if tx.Error != nil {
-		return compra, tx.Error
+	tx := repository.MySQLDB.
+		Preload("Category").
+		Preload("Articulos").
+		Where("id = ? AND user_id = ?", id, userId).
+		First(&compra)
+	err := tx.Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return compra, ErrPurchaseNotFound
+		}
+		return compra, err
 	}
 	return compra, nil
 }
@@ -59,9 +79,22 @@ func (repository *RepositoryCompraImpl) CreatePurchase(compra models.Purchase) (
 
 // UpdatePurchase updates an existing compra in the database
 func (repository *RepositoryCompraImpl) UpdatePurchase(compra models.Purchase) (models.Purchase, error) {
-	tx := repository.MySQLDB.Session(&gorm.Session{FullSaveAssociations: true}).Updates(&compra)
+	tx := repository.MySQLDB.Session(&gorm.Session{FullSaveAssociations: true}).Preload("Category").Where("user_id = ?", compra.UserID).Updates(&compra)
 	if tx.Error != nil {
-		return compra, tx.Error
+		return compra, ErrPurchaseUpdateFail
+	}
+	return compra, nil
+}
+
+func (repository *RepositoryCompraImpl) GetPurchaseBySoloId(id int) (models.Purchase, error) {
+	var compra models.Purchase
+	tx := repository.MySQLDB.Where("id = ?", id).First(&compra)
+	err := tx.Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return compra, ErrPurchaseNotFound
+		}
+		return compra, err
 	}
 	return compra, nil
 }

@@ -8,6 +8,11 @@ import (
 	"go.uber.org/fx"
 )
 
+func setup() {
+	ginApp := utils.NewRequestHandler(utils.GetLogger(), utils.NewEnv(utils.GetLogger()))
+	ginApp.Gin.Run()
+}
+
 func main() {
 	godotenv.Load()
 	logger := utils.GetLogger().GetFxLogger()
